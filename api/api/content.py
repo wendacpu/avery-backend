@@ -157,7 +157,7 @@ async def generate_content_task(
                 logger.warning(f"公司信息提取失败: {str(e)}")
 
         # 步骤 3: 生成文字内容（使用高级生成器，带质量等级）
-        logger.info("使用高级生成器生成文字内容...")
+        logger.info(f"使用高级生成器生成文字内容... (language={request.language})")
         result = advanced_content_generator.generate_content(
             topic=request.selected_topic,
             linkedin_profile=linkedin_profile,
@@ -166,6 +166,7 @@ async def generate_content_task(
             job_title=request.job_title.value,
             content_quality=request.content_quality.value,
             output_format=request.output_format.value,
+            language=request.language,  # 添加语言参数
         )
 
         generated_content = result.get("content", "")
@@ -188,7 +189,8 @@ async def generate_content_task(
                     content=generated_content,
                     topic=request.selected_topic,
                     content_type=content_type_cn,
-                    visual_design_specs=visual_design_specs  # 传递视觉设计文案
+                    visual_design_specs=visual_design_specs,  # 传递视觉设计文案
+                    content_quality=request.content_quality.value  # 传递质量等级
                 )
             else:
                 # 回退到使用图片提示词
@@ -202,7 +204,8 @@ async def generate_content_task(
                     content=generated_content,
                     topic=request.selected_topic,
                     content_type=content_type_cn,
-                    detailed_prompt=image_prompt
+                    detailed_prompt=image_prompt,
+                    content_quality=request.content_quality.value  # 传递质量等级
                 )
             await asyncio.sleep(1)  # 模拟进度
         else:

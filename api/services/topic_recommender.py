@@ -402,20 +402,20 @@ class TopicRecommender:
         """生成模拟热点主题"""
         mock_topics = {
             "ceo_founder": [
-                {"topic": "CEO如何用AI提升决策效率", "reason": "AI是热点，CEO决策是核心痛点", "estimated_engagement": 90},
-                {"topic": "创始人如何平衡短期收入与长期愿景", "reason": "永恒争议话题，引发共鸣", "estimated_engagement": 85},
+                {"topic": "How CEOs Use AI to Improve Decision-Making", "reason": "AI is trending, CEO decision-making is core pain point", "estimated_engagement": 90},
+                {"topic": "How Founders Balance Short-term Revenue with Long-term Vision", "reason": "Eternal debate topic, resonates with audience", "estimated_engagement": 85},
             ],
             "product_manager": [
-                {"topic": "产品经理如何用AI重构需求分析", "reason": "AI+产品管理是趋势", "estimated_engagement": 88},
-                {"topic": "B2B SaaS产品的PMF验证框架", "reason": "实战方法论，收藏率高", "estimated_engagement": 80},
+                {"topic": "How Product Managers Use AI to Reconstruct Requirements Analysis", "reason": "AI + Product Management is trending", "estimated_engagement": 88},
+                {"topic": "PMF Validation Framework for B2B SaaS Products", "reason": "Practical methodology, high save rate", "estimated_engagement": 80},
             ],
             "sales_director": [
-                {"topic": "销售团队如何用AI工具提升2倍效率", "reason": "效率工具+销售，刚需", "estimated_engagement": 92},
-                {"topic": "从0到1搭建B2B销售漏斗体系", "reason": "实战干货，收藏分享高", "estimated_engagement": 85},
+                {"topic": "How Sales Teams Use AI Tools to Double Efficiency", "reason": "Efficiency tools + sales, essential need", "estimated_engagement": 92},
+                {"topic": "Building B2B Sales Funnel System from Scratch", "reason": "Practical insights, high share and save rate", "estimated_engagement": 85},
             ],
             "default": [
-                {"topic": "如何用AI工具提升工作效率", "reason": "AI热点+效率提升，通用话题", "estimated_engagement": 80},
-                {"topic": "远程团队的协作最佳实践", "reason": "工作方式变革，引发讨论", "estimated_engagement": 75},
+                {"topic": "How to Use AI Tools to Improve Work Efficiency", "reason": "AI trending + efficiency improvement, universal topic", "estimated_engagement": 80},
+                {"topic": "Best Practices for Remote Team Collaboration", "reason": "Work style transformation, sparks discussion", "estimated_engagement": 75},
             ],
         }
 
@@ -432,9 +432,9 @@ class TopicRecommender:
         """生成模拟历史主题"""
         return [
             {
-                "topic": f"基于过往经验的{job_title}实战心得",
+                "topic": f"Practical {job_title.replace('_', ' ').title()} Insights Based on Past Experience",
                 "source": "historical",
-                "reason": "延续历史高互动内容方向",
+                "reason": "Continue direction of high-engagement historical content",
                 "estimated_engagement": 70,
             }
         ][:count]
@@ -443,9 +443,9 @@ class TopicRecommender:
         """生成模拟趋势主题"""
         return [
             {
-                "topic": f"{job_title}需要关注的2025年行业趋势",
+                "topic": f"2025 Industry Trends Every {job_title.replace('_', ' ').title()} Should Watch",
                 "source": "industry_trend",
-                "reason": "前瞻性趋势分析",
+                "reason": "Forward-looking trend analysis",
                 "estimated_engagement": 75,
             }
         ][:count]

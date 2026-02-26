@@ -23,6 +23,7 @@ from api.prompts.content_generation_prompts import (
     CONTENT_TYPE_MAPPING,
     CONTENT_TYPE_MAPPING_REVERSE,
     QUALITY_MAPPING,
+    LINKEDIN_POST_REFINEMENT_PROMPT,
 )
 from api.services.audience_mapper import get_target_audience
 from api.core.config import settings
@@ -35,15 +36,35 @@ class AdvancedContentGenerator:
 
     def __init__(self):
         self.client = None
-        # 使用 Novita AI API（兼容 OpenAI SDK）
-        if settings.novita_api_key and settings.novita_api_key != "your-novita-api-key-here":
+        self.model = "google/gemini-2.5-flash"  # 默认模型
+
+        # 优先级：Groq (免费) > OpenAI > Zhipu GLM > Mock
+        # 1. 尝试使用 Groq (免费 Llama 3.3) - 优先级最高
+        if settings.groq_api_key and settings.groq_api_key != "your-groq-api-key-here":
             self.client = OpenAI(
-                api_key=settings.novita_api_key,
-                base_url="https://api.novita.ai/v1"
+                api_key=settings.groq_api_key,
+                base_url="https://api.groq.com/openai/v1"
             )
-            logger.info("Novita AI client initialized for content generation")
+            self.model = "llama-3.3-70b-versatile"  # Llama 3.3 70B (最新)
+            logger.info("Groq client initialized for content generation (free)")
+        # 2. 尝试使用 OpenAI
+        elif settings.openai_api_key and settings.openai_api_key != "your-openai-api-key-here":
+            self.client = OpenAI(
+                api_key=settings.openai_api_key,
+                base_url="https://api.openai.com/v1"
+            )
+            self.model = "gpt-4o"
+            logger.info("OpenAI client initialized for content generation")
+        # 3. 尝试使用 Zhipu GLM (智谱AI)
+        elif settings.zhipu_api_key and settings.zhipu_api_key != "your-zhipu-api-key-here":
+            self.client = OpenAI(
+                api_key=settings.zhipu_api_key,
+                base_url="https://open.bigmodel.cn/api/paas/v4"
+            )
+            self.model = "glm-4-flash"  # GLM-4-Flash 是高性价比模型
+            logger.info("Zhipu GLM-4 client initialized for content generation")
         else:
-            logger.warning("未配置 Novita API 密钥，将使用模拟数据")
+            logger.warning("未配置文本生成 API 密钥 (GROQ_API_KEY、OPENAI_API_KEY 或 ZHIPU_API_KEY)，将使用模拟数据")
 
     def generate_content(
         self,
@@ -54,6 +75,7 @@ class AdvancedContentGenerator:
         job_title: Optional[str] = None,
         content_quality: Optional[str] = None,
         output_format: Optional[str] = None,
+        language: str = "en",
     ) -> Dict[str, Any]:
         """
         完整的内容生成流程
@@ -66,6 +88,7 @@ class AdvancedContentGenerator:
             job_title: 职位（枚举值，如 "ceo_founder"）
             content_quality: 内容质量（"normal", "advanced", "professional"）
             output_format: 输出格式（"text_only", "with_image"）
+            language: 语言（"en" 或 "zh"）
 
         Returns:
             生成的内容和元数据
@@ -103,6 +126,7 @@ class AdvancedContentGenerator:
             knowledge_retrieval,
             target_audience,
             content_quality,
+            language,
         )
         logger.info("内容主干生成完成")
 
@@ -153,7 +177,7 @@ class AdvancedContentGenerator:
         try:
             prompt = CONTENT_TYPE_DECISION_PROMPT.format(topic=topic)
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -220,7 +244,7 @@ class AdvancedContentGenerator:
 ]"""
 
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -421,6 +445,7 @@ class AdvancedContentGenerator:
         knowledge_retrieval: Dict,
         target_audience: str,
         content_quality: str,
+        language: str = "en",
     ) -> Dict[str, Any]:
         """
         生成内容主干
@@ -466,24 +491,37 @@ class AdvancedContentGenerator:
 
 {knowledge_text}
 
-请基于以上参考资料生成内容，确保内容有据可依、信息准确。"""
+请基于以上参考资料生成内容，确保内容有据可依、信息准确。
+
+**语言要求：请使用{"中文" if language == "zh" else "英文"}生成内容。**"""
         else:
             prompt = f"""{prompt}
 
 ---
 
-（注：未检索到外部参考资料，请使用自身知识库生成内容）"""
+（注：未检索到外部参考资料，请使用自身知识库生成内容）
+
+**语言要求：请使用{"中文" if language == "zh" else "英文"}生成内容。**"""
 
         if not self.client:
-            return self._get_mock_content_main(topic, content_type_cn)
+            return self._get_mock_content_main(topic, content_type_cn, language)
 
         try:
+            # 根据语言选择不同的 system message
+            content_type_en = CONTENT_TYPE_MAPPING.get(content_type_cn, "content")
+            quality_str = QUALITY_MAPPING.get(content_quality, content_quality)
+
+            if language == "zh":
+                system_message = f"你是LinkedIn专业内容创作者，擅长创作{content_type_cn}内容（{quality_str}质量）。"
+            else:
+                system_message = f"You are a LinkedIn professional content creator specializing in {content_type_en} content ({quality_str} quality)."
+
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
-                        "content": f"你是LinkedIn专业内容创作者，擅长创作{content_type_cn}内容（{QUALITY_MAPPING.get(content_quality, content_quality)}质量）。",
+                        "content": system_message,
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -503,7 +541,7 @@ class AdvancedContentGenerator:
 
         except Exception as e:
             logger.error(f"内容主干生成失败: {str(e)}")
-            return self._get_mock_content_main(topic, content_type_cn)
+            return self._get_mock_content_main(topic, content_type_cn, language)
 
     def _generate_visual_design(
         self,
@@ -527,7 +565,7 @@ class AdvancedContentGenerator:
             )
 
             response = self.client.chat.completions.create(
-                model="gpt-4",
+                model=self.model,
                 messages=[
                     {
                         "role": "system",
@@ -586,8 +624,18 @@ class AdvancedContentGenerator:
             )
 
         try:
-            # 直接使用内容主干作为最终内容
-            final_content = content_main.get("content", "")
+            # 获取原始详细内容
+            detailed_content = content_main.get("content", "")
+
+            # 精华提炼：生成适合 LinkedIn 的精简 POST 文本
+            # 从世界前 0.1% 商业领袖的视角提炼核心洞察
+            refined_post = self._refine_linkedin_post(
+                topic=topic,
+                original_content=detailed_content,
+            )
+
+            # 使用精华提炼后的内容作为最终内容
+            final_content = refined_post
 
             return {
                 "success": True,
@@ -602,6 +650,8 @@ class AdvancedContentGenerator:
                     "knowledge_count": len(knowledge_retrieval.get("items", [])),
                     "has_visual_design": visual_design is not None,
                     "visual_design_specs": visual_design.get("design_specs") if visual_design else None,
+                    "refined": True,  # 标记已进行精华提炼
+                    "detailed_content_length": len(detailed_content.split()),  # 原始内容字数
                 },
             }
 
@@ -614,6 +664,50 @@ class AdvancedContentGenerator:
                 visual_design,
                 target_audience,
             )
+
+    def _refine_linkedin_post(
+        self,
+        topic: str,
+        original_content: str,
+    ) -> str:
+        """
+        精华提炼：将详细内容转化为精简的、有深度的 LinkedIn POST
+
+        从世界前 0.1% 商业领袖的视角提炼核心洞察
+        """
+        if not self.client:
+            # 无 API 时，返回原始内容（截取前500字）
+            return original_content[:500] + "..." if len(original_content) > 500 else original_content
+
+        try:
+            # 使用精华提炼提示词
+            prompt = LINKEDIN_POST_REFINEMENT_PROMPT.format(
+                topic=topic,
+                original_content=original_content[:2000],  # 限制输入长度
+            )
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a world-class business thinker in the top 0.1%. You transform complex ideas into profound, concise wisdom.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,  # 稍高的创造性
+                max_tokens=500,  # 限制输出长度
+            )
+
+            refined_post = response.choices[0].message.content.strip()
+            logger.info("LinkedIn POST 精华提炼完成")
+
+            return refined_post
+
+        except Exception as e:
+            logger.error(f"精华提炼失败: {str(e)}")
+            # 失败时返回原始内容（截取）
+            return original_content[:500] + "..." if len(original_content) > 500 else original_content
 
     def generate_image_prompt(
         self,
@@ -673,9 +767,34 @@ class AdvancedContentGenerator:
             "source": "mock",
         }
 
-    def _get_mock_content_main(self, topic: str, content_type: str) -> Dict:
+    def _get_mock_content_main(self, topic: str, content_type: str, language: str = "en") -> Dict:
         """生成模拟内容主干"""
-        mock_content = f"""# {topic}：完整指南
+        if language == "en":
+            mock_content = f"""# {topic}: Complete Guide
+
+## Key Points
+
+01. Define Clear Goals
+Set clear and measurable objectives is the first step to success. Ensure your goals are specific, measurable, and achievable.
+
+02. Create a Plan
+Break down big goals into small steps. Each step should have clear action items and timelines.
+
+03. Execute and Optimize
+Execute continuously and optimize based on feedback. Use data to guide your decisions.
+
+04. Measure Results
+Establish key metrics. Review regularly and adjust strategies.
+
+## Call to Action
+
+Which step do you think is most important? Share your experience in the comments!
+
+#{topic.replace(' ', '')} #ProfessionalAdvice #LinkedIn
+"""
+            summary = f"A complete guide to {topic}, covering 4 key points and call to action."
+        else:
+            mock_content = f"""# {topic}：完整指南
 
 ## 核心要点
 
@@ -697,11 +816,12 @@ class AdvancedContentGenerator:
 
 #{topic.replace(' ', '')} #专业建议 #LinkedIn
 """
+            summary = f"关于{topic}的完整指南，包含4个核心要点和行动号召。"
 
         return {
             "success": True,
             "content": mock_content,
-            "summary": f"关于{topic}的完整指南，包含4个核心要点和行动号召。",
+            "summary": summary,
             "word_count": 100,
         }
 

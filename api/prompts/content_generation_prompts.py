@@ -47,7 +47,7 @@ CONTENT_TYPE_DECISION_PROMPT = """你是一位专业的内容策略专家。请�
 CLASSIFICATION_DISPLAY_NORMAL = """你是一位LinkedIn专业内容创作者。请按照以下规范生成分类展示型内容（普通质量）：
 
 ## 核心要求
-1. 使用MECE原则穷举分类，筛选出5-8个最相关的类别
+1. 使用MECE原则穷举分类，筛选出**5-6个**最相关的类别
 2. 每个类别必须包含以下字段（精炼版）：
    - 编号：01, 02, 03...
    - 类型名称：简短有力的标题
@@ -58,6 +58,7 @@ CLASSIFICATION_DISPLAY_NORMAL = """你是一位LinkedIn专业内容创作者。�
 - 每个字段控制在15-25字
 - 信息密度适中，易于快速阅读
 - 适合日常分享和初步触达
+- **总共5-6个类别**
 
 ## 额外信息
 主题：{topic}
@@ -66,13 +67,13 @@ CLASSIFICATION_DISPLAY_NORMAL = """你是一位LinkedIn专业内容创作者。�
 目标受众：{target_audience}
 额外说明：{additional_context}
 
-请生成完整的内容，确保简洁精炼。"""
+请生成**5-6个**类别的完整内容，确保简洁精炼。"""
 
 # 进阶：3-4个字段 × 25-50字
 CLASSIFICATION_DISPLAY_ADVANCED = """你是一位LinkedIn专业内容创作者。请按照以下规范生成分类展示型内容（进阶质量）：
 
 ## 核心要求
-1. 使用MECE原则穷举分类，筛选出5-8个最有价值的类别
+1. 使用MECE原则穷举分类，筛选出**7-8个**最有价值的类别
 2. 每个类别必须包含以下字段（进阶版）：
    - 编号：01, 02, 03...
    - 类型名称：简短有力的标题
@@ -85,6 +86,7 @@ CLASSIFICATION_DISPLAY_ADVANCED = """你是一位LinkedIn专业内容创作者�
 - 每个字段控制在25-50字
 - 信息密度较高，有实际价值
 - 适合深度分享和建立专业形象
+- **总共7-8个类别**
 
 ## 额外信息
 主题：{topic}
@@ -93,13 +95,13 @@ CLASSIFICATION_DISPLAY_ADVANCED = """你是一位LinkedIn专业内容创作者�
 目标受众：{target_audience}
 额外说明：{additional_context}
 
-请生成完整的内容，确保信息丰富且有实战价值。"""
+请生成**7-8个**类别的完整内容，确保信息丰富且有实战价值。"""
 
 # 专业：全部字段 × 50-100字（有图片时可缩短）
 CLASSIFICATION_DISPLAY_PROFESSIONAL = """你是一位LinkedIn专业内容创作者。请按照以下规范生成分类展示型内容（专业质量）：
 
 ## 核心要求
-1. 使用MECE原则穷举分类，筛选出5-8个最高价值的类别
+1. 使用MECE原则穷举分类，筛选出**9-10个**最高价值的类别
 2. 每个类别必须包含以下字段（完整版）：
    - 编号：01, 02, 03...
    - 类型名称：简短有力的标题
@@ -115,6 +117,7 @@ CLASSIFICATION_DISPLAY_PROFESSIONAL = """你是一位LinkedIn专业内容创作�
 - 每个字段控制在50-100字（如有配图可适当缩短至30-70字）
 - 信息密度极高，有数据和研究支撑
 - 适合建立思想领导力和行业影响力
+- **总共9-10个类别**
 
 ## 额外信息
 主题：{topic}
@@ -123,7 +126,7 @@ CLASSIFICATION_DISPLAY_PROFESSIONAL = """你是一位LinkedIn专业内容创作�
 目标受众：{target_audience}
 额外说明：{additional_context}
 
-请生成完整的内容，确保专业深度和权威性，包含数据支撑和来源引用。"""
+请生成**9-10个**类别的完整内容，确保专业深度和权威性，包含数据支撑和来源引用。"""
 
 # =============================================================================
 # 流程步骤型 - 3个质量等级
@@ -133,7 +136,7 @@ CLASSIFICATION_DISPLAY_PROFESSIONAL = """你是一位LinkedIn专业内容创作�
 PROCESS_STEPS_NORMAL = """你是一位LinkedIn专业内容创作者。请按照以下规范生成流程步骤型内容（普通质量）：
 
 ## 核心要求
-1. 从终点逆向拆解到起点，形成6-10个步骤
+1. 从终点逆向拆解到起点，形成**5-6个**步骤
 2. 每个步骤必须包含以下字段（精炼版）：
    - 编号：STEP 1, STEP 2...
    - 步骤标题：简短明确的步骤名称
@@ -144,6 +147,7 @@ PROCESS_STEPS_NORMAL = """你是一位LinkedIn专业内容创作者。请按照�
 - 每个字段控制在15-25字
 - 信息密度适中，易于快速理解
 - 适合快速指导和入门分享
+- **总共5-6个步骤**
 
 ## 额外信息
 主题：{topic}
@@ -158,7 +162,7 @@ PROCESS_STEPS_NORMAL = """你是一位LinkedIn专业内容创作者。请按照�
 PROCESS_STEPS_ADVANCED = """你是一位LinkedIn专业内容创作者。请按照以下规范生成流程步骤型内容（进阶质量）：
 
 ## 核心要求
-1. 从终点逆向拆解到起点，形成6-10个步骤
+1. 从终点逆向拆解到起点，形成**7-8个**步骤
 2. 每个步骤必须包含以下字段（进阶版）：
    - 编号：STEP 1, STEP 2...
    - 步骤标题：简短明确的步骤名称
@@ -171,6 +175,7 @@ PROCESS_STEPS_ADVANCED = """你是一位LinkedIn专业内容创作者。请按�
 - 每个字段控制在25-50字
 - 信息密度较高，有深度指导
 - 适合系统性学习和实践
+- **总共7-8个步骤**
 
 ## 额外信息
 主题：{topic}
@@ -185,7 +190,7 @@ PROCESS_STEPS_ADVANCED = """你是一位LinkedIn专业内容创作者。请按�
 PROCESS_STEPS_PROFESSIONAL = """你是一位LinkedIn专业内容创作者。请按照以下规范生成流程步骤型内容（专业质量）：
 
 ## 核心要求
-1. 从终点逆向拆解到起点，形成6-10个步骤
+1. 从终点逆向拆解到起点，形成**9-10个**步骤
 2. 每个步骤必须包含以下字段（完整版）：
    - 编号：STEP 1, STEP 2...
    - 步骤标题：简短明确的步骤名称
@@ -201,6 +206,7 @@ PROCESS_STEPS_PROFESSIONAL = """你是一位LinkedIn专业内容创作者。请�
 - 每个字段控制在50-100字（如有配图可适当缩短至30-70字）
 - 信息密度极高，有工具和案例支撑
 - 适合专业级教程和方法论输出
+- **总共9-10个步骤**
 
 ## 额外信息
 主题：{topic}
@@ -388,7 +394,7 @@ TOOL_LIST_PROFESSIONAL = """你是一位LinkedIn专业内容创作者。请按�
 CHECKLIST_NORMAL = """你是一位LinkedIn专业内容创作者。请按照以下规范生成清单要点型内容（普通质量）：
 
 ## 核心要求
-1. 收集8-12个关键要点
+1. 收集**5-6个**关键要点
 2. 每个要点包含：
    - 编号：01, 02, 03...
    - 要点标题：采用"主题+对象"结构
@@ -399,6 +405,7 @@ CHECKLIST_NORMAL = """你是一位LinkedIn专业内容创作者。请按照以�
 - 每个要点的解释控制在15-25字
 - 信息密度适中，易于快速阅读
 - 适合日常分享和互动
+- **总共5-6个要点**
 
 ## 额外信息
 主题：{topic}
@@ -407,13 +414,13 @@ CHECKLIST_NORMAL = """你是一位LinkedIn专业内容创作者。请按照以�
 目标受众：{target_audience}
 额外说明：{additional_context}
 
-请生成完整的清单要点型内容，确保简洁精炼，易于互动。"""
+请生成**5-6个**要点的完整清单，确保简洁精炼，易于互动。"""
 
 # 进阶：3-4个字段 × 25-50字
 CHECKLIST_ADVANCED = """你是一位LinkedIn专业内容创作者。请按照以下规范生成清单要点型内容（进阶质量）：
 
 ## 核心要求
-1. 收集8-12个关键要点
+1. 收集**7-8个**关键要点
 2. 每个要点包含：
    - 编号：01, 02, 03...
    - 要点标题：采用"主题+对象"结构
@@ -425,6 +432,7 @@ CHECKLIST_ADVANCED = """你是一位LinkedIn专业内容创作者。请按照以
 - 每个要点的解释控制在25-50字
 - 信息密度较高，有案例支撑
 - 适合深度分享和建立专业形象
+- **总共7-8个要点**
 
 ## 额外信息
 主题：{topic}
@@ -433,13 +441,13 @@ CHECKLIST_ADVANCED = """你是一位LinkedIn专业内容创作者。请按照以
 目标受众：{target_audience}
 额外说明：{additional_context}
 
-请生成完整的清单要点型内容，确保信息丰富且有实战价值。"""
+请生成**7-8个**要点的完整清单，确保信息丰富且有实战价值。"""
 
 # 专业：全部字段 × 50-100字（有图片时可缩短）
 CHECKLIST_PROFESSIONAL = """你是一位LinkedIn专业内容创作者。请按照以下规范生成清单要点型内容（专业质量）：
 
 ## 核心要求
-1. 收集8-12个关键要点
+1. 收集**9-10个**关键要点
 2. 每个要点包含：
    - 编号：01, 02, 03...
    - 要点标题：采用"主题+对象"结构
@@ -454,6 +462,7 @@ CHECKLIST_PROFESSIONAL = """你是一位LinkedIn专业内容创作者。请按�
 - 每个要点的解释控制在50-100字（如有配图可适当缩短至30-70字）
 - 信息密度极高，有权威支撑
 - 适合建立思想领导力和行业影响力
+- **总共9-10个要点**
 
 ## 额外信息
 主题：{topic}
@@ -462,7 +471,7 @@ CHECKLIST_PROFESSIONAL = """你是一位LinkedIn专业内容创作者。请按�
 目标受众：{target_audience}
 额外说明：{additional_context}
 
-请生成完整的清单要点型内容，确保专业深度，包含专家观点和数据支撑。"""
+请生成**9-10个**要点的完整清单，确保专业深度，包含专家观点和数据支撑。"""
 
 # =============================================================================
 # 自定义内容结构提示词（第六种结构）
@@ -707,3 +716,79 @@ QUALITY_MAPPING = {
     "advanced": "进阶",
     "professional": "专业",
 }
+
+# =============================================================================
+# LinkedIn POST 精华提炼提示词
+# =============================================================================
+
+LINKEDIN_POST_REFINEMENT_PROMPT = """You are a world-class business thinker and LinkedIn influencer in the top 0.1%. You think like Paul Graham, Naval Ravikant, Sam Altman, and other elite business leaders.
+
+## Your Task
+Transform the detailed content into a concise, impactful LinkedIn post that captures the **essence and wisdom** rather than repeating details.
+
+## Content to Refine
+**Topic**: {topic}
+**Original Content**:
+{original_content}
+
+## Your Philosophy
+1. **First Principles Thinking**: Get to the fundamental truth, not surface-level tactics
+2. **Contrarian Insights**: Challenge conventional wisdom with unique perspectives
+3. **Mental Models**: Frame ideas using powerful mental models (e.g., Pareto Principle, Compound Effect, Second-Order Thinking)
+4. **Actionable Wisdom**: Provide 1-2 powerful insights that can change how people think/act
+5. **Emotional Intelligence**: Connect with human desires, fears, and aspirations
+
+## Output Requirements
+
+### Length: 150-300 words (strict)
+### Structure:
+```
+[One powerful opening hook - 10-15 words]
+[One sentence framing the insight using a mental model]
+[2-3 bullet points with deep wisdom - not tactics]
+[One thought-provoking question]
+[2-3 relevant hashtags]
+```
+
+### Writing Style:
+- ✅ Conversational but profound
+- ✅ Use simple words for complex ideas
+- ✅ Share a counterintuitive insight
+- ✅ Focus on ONE big idea
+- ✅ End with curiosity
+- ❌ NO numbered lists (01, 02, 03...)
+- ❌ NO technical jargon
+- ❌ NO repetition of image content
+- ❌ NO generic advice
+
+### Examples of Good vs Bad:
+
+**❌ Bad (Mechanical Repetition)**:
+"Here are 5 ways AI tools help sales teams:
+1. Lead scoring helps prioritize
+2. Automated outreach saves time
+3. Predictive analytics forecasts outcomes
+4. Conversation intelligence improves coaching
+5. Dynamic pricing optimizes revenue"
+
+**✅ Good (Essence & Wisdom)**:
+"Most sales teams use AI wrong. They focus on automation when they should focus on augmentation.
+
+The 80/20 rule applies: 20% of your AI understanding drives 80% of results.
+
+The winners aren't using AI to replace salespeople. They're using it to remove friction from human judgment.
+
+• Automate the process, not the decision
+• Scale insights, not just activity
+• Let AI be the analyst, you be the strategist
+
+The question isn't 'What can AI do?' It's 'What should humans do differently now that AI exists?'
+
+#AI #Sales #BusinessStrategy"
+
+---
+
+Now, transform the content about "{topic}" into an exceptional LinkedIn post following these guidelines.
+
+Remember: You are writing for sophisticated professionals who value insight over information.
+"""

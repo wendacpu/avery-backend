@@ -13,6 +13,7 @@ class ContentGenerateRequest(BaseModel):
     output_format: OutputFormat  # 输出格式（必选）
     selected_topic: str  # 用户选择或手动输入的主题
     additional_context: Optional[str] = None  # 额外补充信息
+    language: str = "en"  # 语言：en=英文, zh=中文，默认英文
 
     @field_validator('company_url', mode='before')
     @classmethod

@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     # AI APIs
     openai_api_key: Optional[str] = None
     novita_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
+    zhipu_api_key: Optional[str] = None
     default_model: str = "gpt-4"
     image_model: str = "gemini-2.5-flash-image"
     max_tokens: int = 2000
