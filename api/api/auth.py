@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from api.db.database import get_db
-from api.schemas.user import UserCreate, UserResponse, Token
+from api.schemas.user import UserCreate, UserResponse, Token, OAuthUserSync
 from api.models.user import User
 
 router = APIRouter()
@@ -59,3 +59,42 @@ def get_current_user(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Authentication is handled by NextAuth.js"
     )
+
+
+@router.post("/sync-user", response_model=UserResponse)
+def sync_oauth_user(
+    user_data: OAuthUserSync,
+    db: Session = Depends(get_db)
+):
+    """
+    Sync user from NextAuth OAuth callback.
+    Creates user if doesn't exist, updates if exists.
+    Idempotent operation - safe to call multiple times.
+    """
+    # Check if user exists
+    db_user = db.query(User).filter(User.email == user_data.email).first()
+
+    if db_user:
+        # Update existing user (preserve subscription/credits)
+        if user_data.name and db_user.name != user_data.name:
+            db_user.name = user_data.name
+        # Always update on OAuth sync
+        db_user.is_active = True
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+    else:
+        # Create new user
+        import uuid
+        new_user = User(
+            id=str(uuid.uuid4()),
+            email=user_data.email,
+            name=user_data.name or user_data.email.split("@")[0],
+            subscription_tier="free",  # Default to free tier
+            credits_remaining=5,  # Free tier gets 5 credits
+            is_active=True,
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user

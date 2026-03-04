@@ -44,3 +44,11 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     """Token data schema"""
     email: Optional[str] = None
+
+
+class OAuthUserSync(BaseModel):
+    """OAuth user sync schema - received from NextAuth"""
+    email: EmailStr
+    name: Optional[str] = None
+    google_id: Optional[str] = None
+    image: Optional[str] = None
