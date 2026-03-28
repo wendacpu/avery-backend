@@ -9,9 +9,9 @@ Create **structured, high-value content modules** that maximize information dens
 
 ### Module Quantity Rule
 Based on quality level, generate EXACTLY these many modules:
-- **Normal**: 5-6 modules (quick scan, essential insights)
-- **Advanced**: 7-8 modules (balanced depth, practical value)
-- **Professional**: 9-10 modules (comprehensive, data-backed)
+- **Normal**: 3 modules (quick scan, essential insights)
+- **Advanced**: 4 modules (balanced depth, practical value)
+- **Professional**: 5 modules (comprehensive, data-backed, maximum)
 
 ### 7-Module Framework (Inspired by Best Practices)
 Each module should focus on ONE of these aspects:
@@ -114,17 +114,17 @@ Generate content following this structure:
 
 ## 🎯 Quality Standards by Level
 
-### Normal (5-6 modules)
+### Normal (3 modules)
 - Focus: Essential insights only
 - Depth: Surface-level but actionable
 - Data: 1-2 key metrics per module
 
-### Advanced (7-8 modules)
+### Advanced (4 modules)
 - Focus: Comprehensive coverage
 - Depth: Practical with examples
 - Data: 2-3 data points per module
 
-### Professional (9-10 modules)
+### Professional (5 modules)
 - Focus: Exhaustive analysis
 - Depth: Expert-level with research
 - Data: 3-5 data points per module

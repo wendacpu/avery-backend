@@ -1,6 +1,5 @@
-from sqlalchemy import Column, String, DateTime, Text, Boolean, JSON, Enum, ForeignKey
+from sqlalchemy import Column, String, DateTime, Text, Boolean, JSON, Enum
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 from api.db.database import Base
 import enum
 
@@ -45,7 +44,7 @@ class ContentGeneration(Base):
     __tablename__ = "content_generations"
 
     id = Column(String, primary_key=True, index=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    user_id = Column(String, nullable=False)
 
     # 新字段：职位、内容质量、输出格式
     job_title = Column(Enum(JobTitle), nullable=False)
@@ -70,9 +69,6 @@ class ContentGeneration(Base):
     is_favorited = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True))
-
-    # Relationship
-    user = relationship("User", backref="content_generations")
 
     def __repr__(self):
         return f"<ContentGeneration {self.id} - {self.job_title} - {self.status}>"

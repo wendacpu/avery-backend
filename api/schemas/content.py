@@ -14,6 +14,8 @@ class ContentGenerateRequest(BaseModel):
     selected_topic: str  # 用户选择或手动输入的主题
     additional_context: Optional[str] = None  # 额外补充信息
     language: str = "en"  # 语言：en=英文, zh=中文，默认英文
+    include_charts: Optional[bool] = True  # 是否生成图表
+    style_id: Optional[str] = None  # 视觉风格ID
 
     @field_validator('company_url', mode='before')
     @classmethod
@@ -47,6 +49,12 @@ class ContentResponse(BaseModel):
     image_url: Optional[str] = None  # 单个高质量图片
     content_structure: Optional[str] = None  # 使用的内容结构
     target_audience: Optional[str] = None  # 目标受众
+    research_summary: Optional[Dict[str, Any]] = None
+    image_prompt: Optional[str] = None
+    infographic_spec: Optional[Dict[str, Any]] = None
+    sources: Optional[List[Dict[str, Any]]] = None
+    style_id: Optional[str] = None
+    include_charts: Optional[bool] = None
     is_favorited: bool
     created_at: datetime
     completed_at: Optional[datetime] = None

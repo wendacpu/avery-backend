@@ -28,11 +28,28 @@ from api.services import (
     linkedin_scraper,
     company_scraper
 )
+from api.services.deep_search import deep_search_service
 from api.services.advanced_content_generator import advanced_content_generator
 from api.services.topic_recommender import topic_recommender
+from api.services.audience_mapper import get_target_audience
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+def _extract_image_meta(generated_images):
+    if not generated_images or len(generated_images) == 0:
+        return {}
+    first = generated_images[0]
+    if not isinstance(first, dict):
+        return {}
+    return {
+        "image_prompt": first.get("prompt"),
+        "research_summary": first.get("research_summary"),
+        "infographic_spec": first.get("infographic_spec"),
+        "sources": first.get("sources"),
+        "style_id": first.get("style_id"),
+        "include_charts": first.get("include_charts"),
+    }
 
 
 @router.post("/extract-and-recommend", response_model=ExtractDataResponse)
@@ -156,17 +173,52 @@ async def generate_content_task(
             except Exception as e:
                 logger.warning(f"公司信息提取失败: {str(e)}")
 
-        # 步骤 3: 生成文字内容（使用高级生成器，带质量等级）
-        logger.info(f"使用高级生成器生成文字内容... (language={request.language})")
-        result = advanced_content_generator.generate_content(
+        # 步骤 3: Deep Search（Tavily）
+        logger.info("Running deep search...")
+
+        # 使用V2升级版：职位定制的深度查询
+        from api.prompts.deep_search_prompts_v2 import get_deep_search_queries
+
+        # 生成专业的深度查询
+        queries = get_deep_search_queries(
+            job_title=request.job_title.value if request.job_title else None,
             topic=request.selected_topic,
-            linkedin_profile=linkedin_profile,
-            company_info=company_info,
-            additional_context=request.additional_context,
+            company_info=company_info
+        )
+
+        logger.info(f"使用 {len(queries)} 个专业深度查询")
+
+        deep_search_results = deep_search_service.search(
+            topic=request.selected_topic,
+            queries=queries,  # 使用定制查询
+            max_results_per_query=5
+        )
+
+        # 步骤 4: 研究摘要（NotebookLM 风格）- 使用V2升级版
+        target_audience = get_target_audience(request.job_title.value) if request.job_title else ""
+        include_charts = True if request.include_charts is None else bool(request.include_charts)
+        include_charts = include_charts and request.output_format.value == "with_image"
+
+        logger.info("使用V2升级版Research Synthesis（Executive级别）")
+        research_summary = advanced_content_generator.synthesize_research_v2(
+            topic=request.selected_topic,
+            sources=deep_search_results,
+            target_audience=target_audience,
+            include_charts=include_charts,
+            language=request.language,
+        )
+
+        # 步骤 5: 生成文字内容（使用V2升级版高级生成器，Executive级别）
+        logger.info(f"使用V2升级版生成文字内容（Executive级别）... (language={request.language})")
+
+        # 使用V2版本生成更高密度、更专业的内容
+        result = advanced_content_generator.generate_content_v2(
+            topic=request.selected_topic,
             job_title=request.job_title.value,
+            research_summary=research_summary,
+            target_audience=target_audience,
             content_quality=request.content_quality.value,
-            output_format=request.output_format.value,
-            language=request.language,  # 添加语言参数
+            language=request.language,
         )
 
         generated_content = result.get("content", "")
@@ -174,15 +226,44 @@ async def generate_content_task(
         target_audience = result.get("target_audience", "")
         await asyncio.sleep(2)  # 模拟进度
 
-        # 步骤 4: 生成配图（仅当 output_format == "with_image"）
+        # 步骤 6: 生成配图（仅当 output_format == "with_image"）
         image_url = None
+        image_prompt = None
+        infographic_spec = None
         if request.output_format.value == "with_image":
-            logger.info("生成配图...")
+            logger.info("生成配图（使用V2升级版高密度信息图）...")
+
+            # 生成高密度信息图规范 - 使用V2版本
+            infographic_spec = advanced_content_generator.generate_infographic_spec_v2(
+                topic=request.selected_topic,
+                research_summary=research_summary,
+                content_quality=request.content_quality.value,
+                include_charts=include_charts,
+                style_id=request.style_id,
+                language=request.language,
+            )
+
+            # 生成图片提示词（反向工程）
+            image_prompt = advanced_content_generator.build_infographic_image_prompt(
+                spec=infographic_spec,
+                style_id=request.style_id,
+                include_charts=include_charts,
+            )
 
             # 获取视觉设计文案（从结果中）
             visual_design_specs = result.get("metadata", {}).get("visual_design_specs")
 
-            if visual_design_specs:
+            # 优先使用高密度信息图 prompt
+            if image_prompt:
+                logger.info("使用高密度信息图 prompt 生成图片")
+                image_url = image_generator.generate_image(
+                    content=generated_content,
+                    topic=request.selected_topic,
+                    content_type=content_type_cn,
+                    detailed_prompt=image_prompt,
+                    content_quality=request.content_quality.value
+                )
+            elif visual_design_specs:
                 # 使用视觉设计文案生成图片
                 logger.info("使用视觉设计文案生成图片")
                 image_url = image_generator.generate_image(
@@ -195,16 +276,15 @@ async def generate_content_task(
             else:
                 # 回退到使用图片提示词
                 logger.info("使用图片提示词生成图片")
-                image_prompt = advanced_content_generator.generate_image_prompt(
-                    topic=request.selected_topic,
-                    content_type_cn=content_type_cn,
-                    content_summary=generated_content[:200] if generated_content else ""
-                )
                 image_url = image_generator.generate_image(
                     content=generated_content,
                     topic=request.selected_topic,
                     content_type=content_type_cn,
-                    detailed_prompt=image_prompt,
+                    detailed_prompt=image_prompt or advanced_content_generator.generate_image_prompt(
+                        topic=request.selected_topic,
+                        content_type_cn=content_type_cn,
+                        content_summary=generated_content[:200] if generated_content else ""
+                    ),
                     content_quality=request.content_quality.value  # 传递质量等级
                 )
             await asyncio.sleep(1)  # 模拟进度
@@ -217,7 +297,15 @@ async def generate_content_task(
         generation.target_audience = target_audience
 
         if image_url:
-            generation.generated_images = [{"url": image_url}]
+            generation.generated_images = [{
+                "url": image_url,
+                "prompt": image_prompt,
+                "research_summary": research_summary,
+                "infographic_spec": infographic_spec,
+                "sources": [{"title": s.get("title", ""), "url": s.get("url", "")} for s in deep_search_results[:8]],
+                "style_id": request.style_id,
+                "include_charts": include_charts,
+            }]
 
         generation.status = GenerationStatus.COMPLETED
         generation.completed_at = datetime.utcnow()
@@ -335,6 +423,12 @@ async def get_content_history(
                 image_url=g.generated_images[0]["url"] if g.generated_images and len(g.generated_images) > 0 else None,
                 content_structure=g.content_structure,
                 target_audience=g.target_audience,
+                research_summary=_extract_image_meta(g.generated_images).get("research_summary"),
+                image_prompt=_extract_image_meta(g.generated_images).get("image_prompt"),
+                infographic_spec=_extract_image_meta(g.generated_images).get("infographic_spec"),
+                sources=_extract_image_meta(g.generated_images).get("sources"),
+                style_id=_extract_image_meta(g.generated_images).get("style_id"),
+                include_charts=_extract_image_meta(g.generated_images).get("include_charts"),
                 is_favorited=g.is_favorited,
                 created_at=g.created_at,
                 completed_at=g.completed_at
@@ -374,6 +468,12 @@ async def get_content(content_id: str, db: Session = Depends(get_db)):
         image_url=content.generated_images[0]["url"] if content.generated_images and len(content.generated_images) > 0 else None,
         content_structure=content.content_structure,
         target_audience=content.target_audience,
+        research_summary=_extract_image_meta(content.generated_images).get("research_summary"),
+        image_prompt=_extract_image_meta(content.generated_images).get("image_prompt"),
+        infographic_spec=_extract_image_meta(content.generated_images).get("infographic_spec"),
+        sources=_extract_image_meta(content.generated_images).get("sources"),
+        style_id=_extract_image_meta(content.generated_images).get("style_id"),
+        include_charts=_extract_image_meta(content.generated_images).get("include_charts"),
         is_favorited=content.is_favorited,
         created_at=content.created_at,
         completed_at=content.completed_at
@@ -415,6 +515,12 @@ async def update_content(
         image_url=content.generated_images[0]["url"] if content.generated_images and len(content.generated_images) > 0 else None,
         content_structure=content.content_structure,
         target_audience=content.target_audience,
+        research_summary=_extract_image_meta(content.generated_images).get("research_summary"),
+        image_prompt=_extract_image_meta(content.generated_images).get("image_prompt"),
+        infographic_spec=_extract_image_meta(content.generated_images).get("infographic_spec"),
+        sources=_extract_image_meta(content.generated_images).get("sources"),
+        style_id=_extract_image_meta(content.generated_images).get("style_id"),
+        include_charts=_extract_image_meta(content.generated_images).get("include_charts"),
         is_favorited=content.is_favorited,
         created_at=content.created_at,
         completed_at=content.completed_at
@@ -452,6 +558,12 @@ async def toggle_favorite(content_id: str, db: Session = Depends(get_db)):
         image_url=content.generated_images[0]["url"] if content.generated_images and len(content.generated_images) > 0 else None,
         content_structure=content.content_structure,
         target_audience=content.target_audience,
+        research_summary=_extract_image_meta(content.generated_images).get("research_summary"),
+        image_prompt=_extract_image_meta(content.generated_images).get("image_prompt"),
+        infographic_spec=_extract_image_meta(content.generated_images).get("infographic_spec"),
+        sources=_extract_image_meta(content.generated_images).get("sources"),
+        style_id=_extract_image_meta(content.generated_images).get("style_id"),
+        include_charts=_extract_image_meta(content.generated_images).get("include_charts"),
         is_favorited=content.is_favorited,
         created_at=content.created_at,
         completed_at=content.completed_at

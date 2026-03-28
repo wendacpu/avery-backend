@@ -23,15 +23,15 @@ class TopicRecommender:
 
     def __init__(self):
         self.client = None
-        # 使用 Novita AI API（兼容 OpenAI SDK）
-        if settings.novita_api_key and settings.novita_api_key != "your-novita-api-key-here":
+        # 使用 Groq API（兼容 OpenAI SDK，提供真正的LLM服务）
+        if settings.groq_api_key and settings.groq_api_key != "your-groq-api-key-here":
             self.client = OpenAI(
-                api_key=settings.novita_api_key,
-                base_url="https://api.novita.ai/v1"
+                api_key=settings.groq_api_key,
+                base_url="https://api.groq.com/openai/v1"
             )
-            logger.info("Novita AI client initialized for topic recommendation")
+            logger.info("Groq API client initialized for topic recommendation")
         else:
-            logger.warning("未配置 Novita API 密钥，将使用模拟推荐数据")
+            logger.warning("未配置 Groq API 密钥，将使用模拟推荐数据")
 
     def generate_recommendations(
         self,

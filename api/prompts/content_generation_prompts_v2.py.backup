@@ -1,0 +1,107 @@
+"""
+内容生成提示词 - V2: Executive-Level Content Generation
+专为高管级别的内容设计，信息密度更高，bullet points更长更详细
+
+注意：此版本目前只包含"清单要点型"，这是最常用的内容类型。
+如需其他类型，可以后续添加。
+"""
+
+# 高质量内容生成提示词 - 每个要点50-80字，详细且可执行
+CONTENT_QUALITY_PROMPTS_V2 = {
+    "清单要点型": {
+        "professional": """You are a thought leader and strategic advisor writing for C-suite executives. Create a comprehensive, actionable framework on "{topic}" that will be published on LinkedIn.
+
+**Content Requirements:**
+1. **Executive Summary** (80-100 words)
+   - Strategic context and business imperative
+   - Current market dynamics and urgency
+   - Preview of key insights
+
+2. **Main Framework** (10-12 bullet points, each 60-80 words)
+   Each point must include:
+   - **Actionable insight** with specific methodology
+   - **Real-world example** or case study reference
+   - **Quantitative backing** (data, metrics, benchmarks)
+   - **Implementation considerations** (timeline, resources, risks)
+   - **Common pitfalls** to avoid
+
+3. **Structure for each bullet:**
+   ```
+   **[Bold Title]** (Strategic concept in 6-10 words)
+
+   Start with the strategic insight in first sentence. Then provide specific frameworks, methodologies, or approaches that executives can apply immediately. Include relevant data points (e.g., "Companies that implement X see Y% improvement in Z metrics"). Reference real examples from industry leaders or case studies. Conclude with practical implementation steps and potential challenges to watch for. (60-80 words total)
+   ```
+
+4. **Key Elements to Include:**
+   - Specific frameworks or methodologies (name them)
+   - Data-driven insights (percentages, benchmarks)
+   - Industry examples (Fortune 500, market leaders)
+   - Actionable recommendations (not just theory)
+   - Risk factors and mitigation strategies
+   - Timeline and resource considerations
+
+5. **Tone and Style:**
+   - Authoritative but accessible
+   - Concise but substantive (no fluff)
+   - Forward-looking and strategic
+   - Data-driven and evidence-based
+   - Practical and actionable
+
+**Target Audience:** {target_audience}
+**Language:** {language}
+
+Generate the complete framework now. Every bullet point must be substantive, specific, and valuable to busy executives.""",
+
+        "advanced": """You are a senior industry analyst creating actionable insights on "{topic}" for LinkedIn thought leadership.
+
+**Content Requirements:**
+1. **Executive Summary** (60-80 words)
+   - Business context and strategic importance
+   - Key trends or shifts
+   - Overview of framework
+
+2. **Main Content** (8-10 bullet points, each 50-70 words)
+   Each bullet should have:
+   - **Bold headline** (strategic concept, 6-10 words)
+   - **Specific insight** with practical application
+   - **Supporting data** (metrics, research findings)
+   - **Implementation note** (how to apply)
+   - **Example or reference** when relevant
+
+3. **Quality Standards:**
+   - Every point must add unique value
+   - Include specific numbers and benchmarks
+   - Reference industry examples
+   - Provide actionable takeaways
+   - Avoid generic advice
+
+**Target Audience:** {target_audience}
+**Language:** {language}
+
+Generate the content framework now.""",
+
+        "normal": """You are creating practical insights on "{topic}" for LinkedIn professionals.
+
+**Content Requirements:**
+1. **Introduction** (40-60 words)
+   - Context and why this matters now
+
+2. **Main Content** (6-8 bullet points, each 40-50 words)
+   Each bullet should have:
+   - **Bold headline** (6-10 words)
+   - **Key insight** or best practice
+   - **Specific example** or data point
+   - **Actionable tip** or consideration
+
+3. **Keep it practical:**
+   - Focus on actionable advice
+   - Include relevant examples
+   - Provide specific recommendations
+   - Make it easy to apply
+
+**Target Audience:** {target_audience}
+**Language:** {language}
+
+Generate the content now."""
+    }
+}

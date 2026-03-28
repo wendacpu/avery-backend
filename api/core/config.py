@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     zhipu_api_key: Optional[str] = None
+    tavily_api_key: Optional[str] = None
     default_model: str = "gpt-4"
     image_model: str = "gemini-2.5-flash-image"
+    image_enhancement_model: str = "flux-pro"  # 用于图生图质量优化的更强模型
     max_tokens: int = 2000
 
     # n8n

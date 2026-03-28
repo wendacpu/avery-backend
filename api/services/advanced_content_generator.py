@@ -25,6 +25,18 @@ from api.prompts.content_generation_prompts import (
     QUALITY_MAPPING,
     LINKEDIN_POST_REFINEMENT_PROMPT,
 )
+from api.prompts.deep_search_prompts import (
+    RESEARCH_SYNTHESIS_PROMPT,
+    INFOGRAPHIC_SPEC_PROMPT,
+)
+# V2升级版提示词（Executive级别）
+from api.prompts.deep_search_prompts_v2 import (
+    RESEARCH_SYNTHESIS_PROMPT_V2,
+    INFOGRAPHIC_SPEC_PROMPT_V2,
+    get_deep_search_queries,
+)
+from api.prompts.content_generation_prompts_v2 import CONTENT_QUALITY_PROMPTS_V2
+from api.prompts.infographic_styles import STYLE_LIBRARY, DEFAULT_STYLE_ID
 from api.services.audience_mapper import get_target_audience
 from api.core.config import settings
 
@@ -66,6 +78,126 @@ class AdvancedContentGenerator:
         else:
             logger.warning("未配置文本生成 API 密钥 (GROQ_API_KEY、OPENAI_API_KEY 或 ZHIPU_API_KEY)，将使用模拟数据")
 
+    def generate_content_v2(
+        self,
+        topic: str,
+        job_title: Optional[str] = None,
+        research_summary: Optional[Dict[str, Any]] = None,
+        target_audience: str = "",
+        content_quality: str = "advanced",
+        language: str = "en",
+    ) -> Dict[str, Any]:
+        """
+        使用V2提示词生成内容（Executive级别，更高密度）
+
+        特点：
+        - Bullet points: 60-80字（Professional）
+        - 数量: 10-12个（Professional）
+        - 包含: 框架、数据、案例、实施建议
+        """
+        logger.info(f"使用V2升级版生成内容 - 主题: {topic}, 质量: {content_quality}")
+
+        # 默认值处理
+        if not content_quality:
+            content_quality = "advanced"
+        if not job_title:
+            job_title = "other"
+
+        # 推断内容类型（简化版，直接使用清单要点型）
+        content_type_cn = "清单要点型"
+
+        # 准备研究摘要文本
+        research_text = ""
+        if research_summary:
+            research_text = json.dumps(research_summary, ensure_ascii=False, indent=2)
+
+        # 使用V2提示词
+        # 根据质量等级选择提示词
+        if content_quality == "professional":
+            quality_key = "professional"
+        elif content_quality == "advanced":
+            quality_key = "advanced"
+        else:
+            quality_key = "normal"
+
+        # 从V2提示词中获取（注意：V2只有"清单要点型"的完整示例，其他类型需要扩展）
+        prompt_template = CONTENT_QUALITY_PROMPTS_V2.get("清单要点型", {}).get(quality_key)
+
+        if not prompt_template:
+            logger.warning(f"V2提示词未找到质量等级 {quality_key}，回退到V1")
+            # 回退到V1
+            return self.generate_content(
+                topic=topic,
+                linkedin_profile=None,
+                company_info=None,
+                additional_context=None,
+                job_title=job_title,
+                content_quality=content_quality,
+                output_format="text_only",
+                language=language,
+                research_summary=research_summary,
+            )
+
+        # 格式化提示词
+        prompt = prompt_template.format(
+            topic=topic,
+            target_audience=target_audience,
+            language=language,
+            research_summary=research_text[:2000],  # 限制长度
+        )
+
+        if not self.client:
+            logger.warning("未配置文本生成API，返回模拟内容")
+            return self._get_mock_content(topic, content_type_cn)
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a thought leader and strategic advisor writing for C-suite executives."
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+                max_tokens=3000,  # 增加token限制以获取更详细内容
+            )
+
+            result = response.choices[0].message.content
+
+            # 提取内容
+            generated_content = result.strip()
+
+            logger.info(f"V2内容生成成功，长度: {len(generated_content)} 字符")
+
+            return {
+                "content": generated_content,
+                "content_type": content_type_cn,
+                "target_audience": target_audience,
+                "metadata": {
+                    "version": "v2",
+                    "content_quality": content_quality,
+                    "research_included": bool(research_summary)
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"V2内容生成失败: {str(e)}")
+            # 回退到V1
+            logger.warning("回退到V1版本的generate_content")
+            return self.generate_content(
+                topic=topic,
+                linkedin_profile=None,
+                company_info=None,
+                additional_context=None,
+                job_title=job_title,
+                content_quality=content_quality,
+                output_format="text_only",
+                language=language,
+                research_summary=research_summary,
+            )
+
     def generate_content(
         self,
         topic: str,
@@ -76,6 +208,7 @@ class AdvancedContentGenerator:
         content_quality: Optional[str] = None,
         output_format: Optional[str] = None,
         language: str = "en",
+        research_summary: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         完整的内容生成流程
@@ -127,6 +260,7 @@ class AdvancedContentGenerator:
             target_audience,
             content_quality,
             language,
+            research_summary,
         )
         logger.info("内容主干生成完成")
 
@@ -446,6 +580,7 @@ class AdvancedContentGenerator:
         target_audience: str,
         content_quality: str,
         language: str = "en",
+        research_summary: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         生成内容主干
@@ -481,8 +616,12 @@ class AdvancedContentGenerator:
             content_quality=QUALITY_MAPPING.get(content_quality, content_quality),
         )
 
-        # 如果有知识库检索结果，添加到提示词中
-        if knowledge_text:
+        research_text = ""
+        if research_summary:
+            research_text = json.dumps(research_summary, ensure_ascii=False)
+
+        # 如果有知识库检索结果或研究摘要，添加到提示词中
+        if knowledge_text or research_text:
             prompt = f"""{prompt}
 
 ---
@@ -490,6 +629,10 @@ class AdvancedContentGenerator:
 ## 知识库参考资料
 
 {knowledge_text}
+
+## 深度研究摘要
+
+{research_text}
 
 请基于以上参考资料生成内容，确保内容有据可依、信息准确。
 
@@ -708,6 +851,340 @@ class AdvancedContentGenerator:
             logger.error(f"精华提炼失败: {str(e)}")
             # 失败时返回原始内容（截取）
             return original_content[:500] + "..." if len(original_content) > 500 else original_content
+
+    # ===== V2升级版方法：Executive级别内容生成 =====
+
+    def synthesize_research_v2(
+        self,
+        topic: str,
+        sources: List[Dict[str, Any]],
+        target_audience: str,
+        include_charts: bool,
+        language: str = "en",
+    ) -> Dict[str, Any]:
+        """
+        使用V2提示词进行深度研究综合（Executive级别）
+
+        特点：
+        - 更深刻的市场分析
+        - 战略性洞察（非显而易见）
+        - 带行业基准的数据点
+        - 战略影响分析
+        """
+        if not sources:
+            return {
+                "summary": "",
+                "market_context": "",
+                "strategic_insights": [],
+                "key_numbers": [],
+                "strategic_implications": [],
+                "chart_candidates": [],
+                "expert_quotes": [],
+                "citations": [],
+            }
+
+        # V2使用更多源（10个而不是8个）
+        sources_text = "\n".join([
+            f"- {s.get('title','')} | {s.get('url','')}\n{s.get('content','')[:1500]}"
+            for s in sources[:10]
+        ])
+
+        if not self.client:
+            return {
+                "summary": "",
+                "market_context": "",
+                "strategic_insights": [],
+                "key_numbers": [],
+                "strategic_implications": [],
+                "chart_candidates": [],
+                "expert_quotes": [],
+                "citations": [{"title": s.get("title", ""), "url": s.get("url", "")} for s in sources[:5]],
+            }
+
+        prompt = RESEARCH_SYNTHESIS_PROMPT_V2.format(
+            topic=topic,
+            target_audience=target_audience,
+            include_charts=str(include_charts),
+            sources_text=sources_text,
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a senior research analyst at McKinsey/Bain/BCG level."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2000,  # 增加token限制以获取更详细内容
+            )
+
+            result = response.choices[0].message.content
+            if "```json" in result:
+                result = result.split("```json")[1].split("```")[0].strip()
+            elif "```" in result:
+                result = result.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(result)
+            if not include_charts:
+                data["chart_candidates"] = []
+            return data
+        except Exception as e:
+            logger.error(f"V2 Research synthesis failed: {e}")
+            # 回退到V1
+            logger.warning("回退到V1版本的synthesize_research")
+            return self.synthesize_research(topic, sources, target_audience, include_charts, language)
+
+    def generate_infographic_spec_v2(
+        self,
+        topic: str,
+        research_summary: Dict[str, Any],
+        content_quality: str,
+        include_charts: bool,
+        style_id: Optional[str] = None,
+        language: str = "en",
+    ) -> Dict[str, Any]:
+        """
+        使用V2提示词生成信息图规范（更高密度）
+
+        特点：
+        - 更多模块（Professional: 11-13个）
+        - 更详细的每个模块（30-50字）
+        - 优化的排版（20% white space）
+        - 修复的图表竖排文字bug
+        """
+        if not self.client:
+            return {
+                "title": topic,
+                "subtitle": "",
+                "tagline": "",
+                "modules": [],
+                "chart": {"enabled": False},
+                "footer": "",
+            }
+
+        style_id = style_id or DEFAULT_STYLE_ID
+        prompt = INFOGRAPHIC_SPEC_PROMPT_V2.format(
+            topic=topic,
+            content_quality=content_quality,
+            include_charts=str(include_charts),
+            style_id=style_id,
+            research_summary=json.dumps(research_summary, ensure_ascii=False),
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a world-class information designer specializing in executive communications."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=2500,  # 增加token限制
+            )
+
+            result = response.choices[0].message.content
+            if "```json" in result:
+                result = result.split("```json")[1].split("```")[0].strip()
+            elif "```" in result:
+                result = result.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(result)
+
+            # 确保图表没有竖排文字
+            if include_charts and data.get("chart", {}).get("enabled"):
+                chart = data["chart"]
+                # 验证标签长度
+                if "values" in chart:
+                    for v in chart["values"]:
+                        if "x" in v and len(v["x"]) > 10:
+                            v["x"] = v["x"][:10] + "..."
+                        if "annotation" in v and len(v["annotation"]) > 15:
+                            v["annotation"] = v["annotation"][:15] + "..."
+
+            if not include_charts and "chart" in data:
+                data["chart"]["enabled"] = False
+            return data
+        except Exception as e:
+            logger.error(f"V2 Infographic spec generation failed: {e}")
+            # 回退到V1
+            logger.warning("回退到V1版本的generate_infographic_spec")
+            return self.generate_infographic_spec(topic, research_summary, content_quality, include_charts, style_id, language)
+
+    # ===== 原有方法保持不变 =====
+
+    def synthesize_research(
+        self,
+        topic: str,
+        sources: List[Dict[str, Any]],
+        target_audience: str,
+        include_charts: bool,
+        language: str = "en",
+    ) -> Dict[str, Any]:
+        if not sources:
+            return {
+                "summary": "",
+                "key_insights": [],
+                "key_numbers": [],
+                "chart_candidates": [],
+                "citations": [],
+            }
+
+        sources_text = "\n".join([
+            f"- {s.get('title','')} | {s.get('url','')}\n{s.get('content','')[:1200]}"
+            for s in sources[:8]
+        ])
+
+        if not self.client:
+            return {
+                "summary": "",
+                "key_insights": [],
+                "key_numbers": [],
+                "chart_candidates": [],
+                "citations": [{"title": s.get("title", ""), "url": s.get("url", "")} for s in sources[:5]],
+            }
+
+        prompt = RESEARCH_SYNTHESIS_PROMPT.format(
+            topic=topic,
+            target_audience=target_audience,
+            include_charts=str(include_charts),
+            sources_text=sources_text,
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a rigorous research analyst."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.2,
+                max_tokens=1500,
+            )
+
+            result = response.choices[0].message.content
+            if "```json" in result:
+                result = result.split("```json")[1].split("```")[0].strip()
+            elif "```" in result:
+                result = result.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(result)
+            if not include_charts:
+                data["chart_candidates"] = []
+            return data
+        except Exception as e:
+            logger.error(f"Research synthesis failed: {e}")
+            return {
+                "summary": "",
+                "key_insights": [],
+                "key_numbers": [],
+                "chart_candidates": [],
+                "citations": [{"title": s.get("title", ""), "url": s.get("url", "")} for s in sources[:5]],
+            }
+
+    def generate_infographic_spec(
+        self,
+        topic: str,
+        research_summary: Dict[str, Any],
+        content_quality: str,
+        include_charts: bool,
+        style_id: Optional[str] = None,
+        language: str = "en",
+    ) -> Dict[str, Any]:
+        if not self.client:
+            return {
+                "title": topic,
+                "subtitle": "",
+                "modules": [],
+                "chart": {"enabled": False},
+                "footer": "",
+            }
+
+        style_id = style_id or DEFAULT_STYLE_ID
+        prompt = INFOGRAPHIC_SPEC_PROMPT.format(
+            topic=topic,
+            content_quality=content_quality,
+            include_charts=str(include_charts),
+            style_id=style_id,
+            research_summary=json.dumps(research_summary, ensure_ascii=False),
+        )
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a precise information designer."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=1200,
+            )
+
+            result = response.choices[0].message.content
+            if "```json" in result:
+                result = result.split("```json")[1].split("```")[0].strip()
+            elif "```" in result:
+                result = result.split("```")[1].split("```")[0].strip()
+
+            data = json.loads(result)
+            if not include_charts and "chart" in data:
+                data["chart"]["enabled"] = False
+            return data
+        except Exception as e:
+            logger.error(f"Infographic spec generation failed: {e}")
+            return {
+                "title": topic,
+                "subtitle": "",
+                "modules": [],
+                "chart": {"enabled": False},
+                "footer": "",
+            }
+
+    def build_infographic_image_prompt(
+        self,
+        spec: Dict[str, Any],
+        style_id: Optional[str] = None,
+        include_charts: bool = True,
+    ) -> str:
+        style_id = style_id or DEFAULT_STYLE_ID
+        style_block = STYLE_LIBRARY.get(style_id, STYLE_LIBRARY[DEFAULT_STYLE_ID])
+
+        title = spec.get("title", "")
+        subtitle = spec.get("subtitle", "")
+        modules = spec.get("modules", [])
+        chart = spec.get("chart", {})
+        footer = spec.get("footer", "")
+
+        modules_text = "\n".join([
+            f"- {m.get('id','')}: {m.get('title','')} — {m.get('phrase','')}"
+            for m in modules
+        ])
+
+        chart_text = ""
+        if include_charts and chart and chart.get("enabled", True):
+            values = chart.get("values", [])
+            chart_text = (
+                f"\nChart: {chart.get('type','')} | {chart.get('title','')}\n"
+                f"X: {chart.get('x_label','')} | Y: {chart.get('y_label','')}\n"
+                f"Values: {values}"
+            )
+
+        prompt = f"""Create a high-density, professional infographic for LinkedIn.
+Title: {title}
+Subtitle: {subtitle}
+
+Modules:
+{modules_text}
+{chart_text}
+
+Footer: {footer}
+
+{style_block}
+
+Aspect Ratio: 3:4 (Portrait)
+All text must be legible. Use short phrases, high contrast, and precise alignment.
+"""
+        return prompt
 
     def generate_image_prompt(
         self,

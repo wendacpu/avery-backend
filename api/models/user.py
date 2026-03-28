@@ -20,6 +20,7 @@ class User(Base):
     name = Column(String)
     linkedin_url = Column(String)
     company_url = Column(String)
+    hashed_password = Column(String)
     subscription_tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.FREE)
     credits_remaining = Column(Integer, default=5)
     is_active = Column(Boolean, default=True)
