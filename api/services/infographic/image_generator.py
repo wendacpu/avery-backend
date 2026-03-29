@@ -1,6 +1,6 @@
 """
 Image Generator Module
-Handles AI image generation using Novita AI API with local saving and retry logic.
+Handles AI image generation using Vidu API with local saving and async polling logic.
 """
 import logging
 import httpx
@@ -23,34 +23,43 @@ class GenerationError(Exception):
 
 class ImageGenerator:
     """
-    AI Image Generator using Novita AI API
+    AI Image Generator using Vidu API
 
     Features:
-    - Novita AI API integration (Gemini 2.5 Flash)
+    - Vidu API integration (nano/q2-fast, nano pro/q2-pro, nano 2/q3-fast)
     - Local image saving
-    - Retry logic for failed generations
+    - Asynchronous polling logic for task checking
     - URL and base64 output support
     """
 
     def __init__(self):
         """Initialize image generator"""
-        self.api_key = settings.novita_api_key
-        self.model = settings.image_model or "gemini-2.5-flash-image"
-        # Use gemini-2.5-flash-image for editing as requested
-        self.enhancement_model = "gemini-2.5-flash-image" 
-        self.api_base = "https://api.novita.ai/v3"
+        self.api_key = getattr(settings, "vidu_api_key", getattr(settings, "novita_api_key", None))
+        
+        # User defined mapping: q2-fast (nano), q2-pro (nano pro), q3-fast (nano 2)
+        model_name = settings.image_model or "q2-fast"
+        # Backward compatibility if it still is gemini
+        if "gemini" in model_name:
+            self.model = "q2-fast"
+        else:
+            self.model = model_name
+            
+        self.enhancement_model = "q3-fast" 
+        self.api_base = "https://api.vidu.cn/ent/v2"
         self.output_dir = Path("generated_images")
         self.output_dir.mkdir(exist_ok=True)
 
         # Configuration
         self.max_retries = 3
         self.timeout = 60.0
-        self.aspect_ratio = "3:4"  # LinkedIn optimized
+        self.polling_interval = 3.0
+        self.max_polling_time = 120.0
+        self.aspect_ratio = "3:4"  # Default aspect ratio
 
-        if self.api_key and self.api_key != "your-novita-api-key-here":
-            logger.info(f"ImageGenerator initialized with model: {self.model}, enhancement_model: {self.enhancement_model}")
+        if self.api_key and self.api_key != "your-api-key-here" and "your-novita" not in self.api_key:
+            logger.info(f"ImageGenerator initialized with Vidu model: {self.model}, enhancement model: {self.enhancement_model}")
         else:
-            logger.warning("Novita API key not configured")
+            logger.warning("Vidu API key not configured")
 
     def generate(
         self,
@@ -69,13 +78,9 @@ class ImageGenerator:
             retry_on_failure: Whether to retry on failure
 
         Returns:
-            Dict with:
-                - success: bool
-                - image_url: str (if successful)
-                - local_path: str (if saved locally)
-                - error: str (if failed)
+            Dict with success, image_url, local_path, error etc.
         """
-        if not self.api_key or self.api_key == "your-novita-api-key-here":
+        if not self.api_key or self.api_key == "your-api-key-here" or "your-novita" in self.api_key:
             return self._get_mock_result(prompt)
 
         logger.info(f"Generating image with prompt length: {len(prompt)} chars")
@@ -86,7 +91,7 @@ class ImageGenerator:
         while attempt < (self.max_retries if retry_on_failure else 1):
             attempt += 1
             try:
-                result = self._generate_with_novita(prompt)
+                result = self._generate_with_vidu(prompt=prompt, model=self.model)
 
                 if result["success"] and save_local:
                     local_path = self._save_image(
@@ -103,7 +108,6 @@ class ImageGenerator:
                 if attempt < self.max_retries:
                     logger.info(f"Retrying... ({attempt}/{self.max_retries})")
 
-        # All retries failed
         logger.error(f"Image generation failed after {attempt} attempts: {last_error}")
         return {
             "success": False,
@@ -111,42 +115,141 @@ class ImageGenerator:
             "attempts": attempt
         }
 
-    def _generate_with_novita(self, prompt: str) -> Dict[str, Any]:
-        """Generate image using Novita AI API"""
-        url = f"{self.api_base}/{self.model}-text-to-image"
+    def _generate_with_vidu(self, prompt: str, model: str, image_path: str = None) -> Dict[str, Any]:
+        """Generate or edit image using Vidu API and poll until completion"""
+        url = f"{self.api_base}/reference2image/nano"
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
+            "Authorization": f"Token {self.api_key}"
         }
 
+        # Vidu limit prompt length
+        safe_prompt = prompt[:5000]
+
         payload = {
-            "prompt": prompt,
+            "model": model,
+            "prompt": safe_prompt,
             "aspect_ratio": self.aspect_ratio
         }
 
-        logger.info(f"Calling Novita API: {url}")
+        if image_path:
+            # Process reference image to base64
+            if image_path.startswith("http"):
+                response = httpx.get(image_path, timeout=10)
+                file_ext = image_path.split('.')[-1][:4].lower()
+                mime_type = "image/jpeg" if file_ext in ["jpg", "jpeg"] else "image/png"
+                b64_data = base64.b64encode(response.content).decode("utf-8")
+            else:
+                with open(image_path, "rb") as f:
+                    file_ext = image_path.split('.')[-1].lower()
+                    mime_type = "image/jpeg" if file_ext in ["jpg", "jpeg"] else "image/png"
+                    b64_data = base64.b64encode(f.read()).decode("utf-8")
+                    
+            # For editing we might want to ensure prompt relates to editing
+            payload["images"] = [f"data:{mime_type};base64,{b64_data}"]
+            payload["prompt"] = f"修改图片: {safe_prompt}"[:5000]
 
-        response = httpx.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=self.timeout
-        )
+        logger.info(f"Calling Vidu Create API: {url} with model {model}")
 
+        response = httpx.post(url, json=payload, headers=headers, timeout=self.timeout)
         response.raise_for_status()
         result = response.json()
 
-        if "image_urls" in result and len(result["image_urls"]) > 0:
-            image_url = result["image_urls"][0]
-            logger.info(f"Image generated successfully: {image_url}")
+        task_id = result.get("task_id")
+        if not task_id:
+            # Sometimes doc might use 'id' instead of 'task_id' but their example states task_id inside creation, wait their task query doc says `id` ? Let's check both
+            task_id = result.get("id") 
+            if not task_id:
+                raise GenerationError(f"Unexpected start response missing task_id: {result}")
+
+        return self._poll_vidu_task(task_id, headers, model)
+
+    def _poll_vidu_task(self, task_id: str, headers: dict, model: str) -> Dict[str, Any]:
+        """Poll the Vidu task query API until completion"""
+        query_url = f"{self.api_base}/tasks/{task_id}/creations"
+        
+        start_time = time.time()
+        
+        while True:
+            if time.time() - start_time > self.max_polling_time:
+                raise GenerationError(f"Polling timeout after {self.max_polling_time}s for Vidu task {task_id}")
+                
+            time.sleep(self.polling_interval)
+            
+            logger.info(f"Checking Vidu task {task_id} status...")
+            response = httpx.get(query_url, headers=headers, timeout=self.timeout)
+            response.raise_for_status()
+            
+            poll_result = response.json()
+            state = poll_result.get("state")
+            
+            if state == "success":
+                creations = poll_result.get("creations", [])
+                if creations and len(creations) > 0 and "url" in creations[0]:
+                    image_url = creations[0]["url"]
+                    logger.info(f"Vidu image generated successfully: {image_url}")
+                    return {
+                        "success": True,
+                        "image_url": image_url,
+                        "model": model,
+                        "task_id": task_id
+                    }
+                else:
+                    raise GenerationError(f"Task succeeded but no image URL found: {poll_result}")
+            elif state == "failed":
+                err_code = poll_result.get("err_code", "Unknown error")
+                raise GenerationError(f"Vidu generation task failed with err_code: {err_code}")
+            elif state in ["created", "queueing", "processing"]:
+                continue # keep polling
+            else:
+                raise GenerationError(f"Unknown Vidu task state '{state}': {poll_result}")
+
+    def edit_image(
+        self,
+        image_path: str,
+        prompt: str,
+        save_local: bool = True,
+        filename: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Edit existing image using Vidu Reference to Image
+        """
+        if not self.api_key or self.api_key == "your-api-key-here" or "your-novita" in self.api_key:
             return {
-                "success": True,
-                "image_url": image_url,
-                "model": self.model
+                "success": False,
+                "error": "Vidu API key not configured"
             }
-        else:
-            raise GenerationError(f"Unexpected response format: {result}")
+
+        attempt = 0
+        last_error = None
+
+        while attempt < self.max_retries:
+            attempt += 1
+            try:
+                # Use enhancement_model for edit tasks ideally
+                result = self._generate_with_vidu(prompt=prompt, model=self.enhancement_model, image_path=image_path)
+
+                if result["success"] and save_local:
+                    local_path = self._save_image(
+                        result["image_url"],
+                        filename or self._generate_filename(f"edit_{prompt}")
+                    )
+                    result["local_path"] = str(local_path)
+
+                return result
+
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Image edit attempt {attempt} failed: {e}")
+                if attempt < self.max_retries:
+                    time.sleep(2 ** attempt)
+
+        return {
+            "success": False,
+            "error": f"Image edit failed after {attempt} attempts: {last_error}",
+            "attempts": attempt
+        }
 
     def _save_image(self, image_url: str, filename: str) -> Path:
         """Save image from URL to local file"""
@@ -164,135 +267,13 @@ class ImageGenerator:
 
         except Exception as e:
             logger.error(f"Failed to save image locally: {e}")
-            # Don't fail the whole operation if local save fails
             return Path("")
 
     def _generate_filename(self, prompt: str) -> str:
         """Generate unique filename from prompt"""
-        # Create hash of prompt for uniqueness
         prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:8]
-
-        # Add timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
         return f"infographic_{timestamp}_{prompt_hash}.png"
-
-    def edit_image(
-        self,
-        image_path: str,
-        prompt: str,
-        save_local: bool = True,
-        filename: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Edit existing image using image-to-image generation
-
-        Args:
-            image_path: Path or URL to source image
-            prompt: Edit instruction prompt
-            save_local: Whether to save edited image locally
-            filename: Custom filename (auto-generated if None)
-
-        Returns:
-            Dict with:
-                - success: bool
-                - image_url: str (if successful)
-                - local_path: str (if saved locally)
-                - error: str (if failed)
-        """
-        if not self.api_key or self.api_key == "your-novita-api-key-here":
-            return {
-                "success": False,
-                "error": "Novita API key not configured"
-            }
-
-        attempt = 0
-        last_error = None
-
-        while attempt < self.max_retries:
-            attempt += 1
-            try:
-                result = self._edit_with_novita(image_path, prompt)
-
-                if result["success"] and save_local:
-                    local_path = self._save_image(
-                        result["image_url"],
-                        filename or self._generate_filename(f"edit_{prompt}")
-                    )
-                    result["local_path"] = str(local_path)
-
-                return result
-
-            except Exception as e:
-                last_error = str(e)
-                logger.warning(f"Image edit attempt {attempt} failed: {e}")
-                if attempt < self.max_retries:
-                    time.sleep(2 ** attempt)  # Exponential backoff
-
-        return {
-            "success": False,
-            "error": f"Image edit failed after {attempt} attempts: {last_error}",
-            "attempts": attempt
-        }
-
-    def _edit_with_novita(self, image_path: str, prompt: str) -> Dict[str, Any]:
-        """Edit image using Novita Gemini 2.5 Flash Image Edit API"""
-        # Endpoint precisely as per user specification
-        url = f"{self.api_base}/{self.enhancement_model}-edit"
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-
-        # Convert local file to base64
-        if image_path.startswith("http"):
-            # If it's already a URL, we need to download it first or use image_urls
-            # specification says choose either image_urls OR image_base64s. 
-            # For consistency, let's keep it as base64 array as requested by the spec
-            response = httpx.get(image_path, timeout=10)
-            img_data = base64.b64encode(response.content).decode("utf-8")
-        else:
-            with open(image_path, "rb") as f:
-                img_data = base64.b64encode(f.read()).decode("utf-8")
-
-        # Wrap the user's prompt with strong modification instructions 
-        # (Improves model adherence to the 'edit' intent)
-        instruction_prompt = (
-            f"DIRECTLY MODIFY the attached image: {prompt}. "
-            f"Maintain the overall typography and professional list layout, "
-            f"but change the visual elements as requested."
-        )
-
-        # Payload structure from user spec
-        payload = {
-            "prompt": instruction_prompt,
-            "image_base64s": [img_data], # Array of string - NO prefix (data:image/...)
-            "aspect_ratio": self.aspect_ratio
-        }
-
-        logger.info(f"Calling Novita Image Edit API: {url}")
-
-        response = httpx.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=self.timeout
-        )
-
-        response.raise_for_status()
-        result = response.json()
-
-        if "image_urls" in result and len(result["image_urls"]) > 0:
-            new_image_url = result["image_urls"][0]
-            logger.info(f"Image edited successfully: {new_image_url}")
-            return {
-                "success": True,
-                "image_url": new_image_url,
-                "model": self.enhancement_model
-            }
-        else:
-            raise GenerationError(f"Unexpected response format: {result}")
 
     def _get_mock_result(self, prompt: str) -> Dict[str, Any]:
         """Get mock result when API is not configured"""
@@ -310,23 +291,15 @@ class ImageGenerator:
     def validate_prompt(self, prompt: str) -> Dict[str, Any]:
         """
         Validate prompt before generation
-
-        Returns:
-            Dict with:
-                - valid: bool
-                - issues: List[str]
-                - suggestions: List[str]
         """
         issues = []
         suggestions = []
 
-        # Check prompt length
         if len(prompt) < 100:
             issues.append("Prompt too short (< 100 chars)")
-        elif len(prompt) > 4000:
-            issues.append("Prompt too long (> 4000 chars)")
+        elif len(prompt) > 5000:
+            issues.append("Prompt too long (> 5000 chars)")
 
-        # Check for required sections
         required_sections = [
             "CRITICAL", "LAYOUT", "COLOR", "TYPOGRAPHY",
             "VISUAL", "CONTENT", "CHECKLIST"
@@ -340,21 +313,6 @@ class ImageGenerator:
         if missing_sections:
             issues.append(f"Missing sections: {', '.join(missing_sections)}")
 
-        # Check for sequence numbers
-        import re
-        sequences = re.findall(r'\bModule\s+(\d+)', prompt)
-        if sequences:
-            # Check if sequential
-            sequences_int = [int(s) for s in sequences]
-            if sequences_int != list(range(1, len(sequences_int) + 1)):
-                issues.append("Module numbers are not sequential")
-
-        # Check for English content
-        # Simple heuristic: check for common non-English characters
-        non_english = sum(1 for c in prompt if ord(c) > 127 and c not in "—–")
-        if non_english > len(prompt) * 0.1:  # More than 10% non-ASCII
-            issues.append("Prompt may contain non-English content")
-
         return {
             "valid": len(issues) == 0,
             "issues": issues,
@@ -364,7 +322,6 @@ class ImageGenerator:
 
 # Global instance
 _image_generator_instance: Optional[ImageGenerator] = None
-
 
 def get_image_generator() -> ImageGenerator:
     """Get singleton image generator instance"""

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # AI APIs
     openai_api_key: Optional[str] = None
     novita_api_key: Optional[str] = None
+    vidu_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     zhipu_api_key: Optional[str] = None

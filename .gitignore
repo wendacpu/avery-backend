@@ -37,3 +37,12 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# Avery Specific
+generated_images/
+generation_exports/
+infographic_content_exports/
+tests/
+*.py.backup
+*.backup
+temp_file_*
